@@ -4,17 +4,32 @@ import { usePapaParse } from 'react-papaparse';
 import { useEffect, useState } from 'react';
 
 const App = () => {
-  const { readRemoteFile } = usePapaParse();
+  const { readString } = usePapaParse();
   const [data, setData] = useState([]);
+  const [lastModified, setLastModified] = useState('0');
 
   useEffect(() => {
-    readRemoteFile('/react-gh-website/data/data_file.csv', {
-      header: true,
-      complete: (results) => {
-        setData(results.data);
-      },
-    });
-  }, [readRemoteFile]);
+    const fetchFile = async () => {
+      const res = await fetch('/react-gh-website/data/data_file.csv');
+      const csvRestoJson = readString(await res.text(), {
+        header: true,
+      }).data;
+      const lm = res.headers.get('last-modified');
+      if (lastModified.length > 0 && new Date(lm) > new Date(lastModified)) {
+        setLastModified(lm);
+        setData(csvRestoJson);
+      }
+    };
+    fetchFile();
+    // run every 5 minuted
+    const fetchAPITimer = setInterval(() => {
+      fetchFile();
+    }, 1000 * 60 * 5);
+
+    return () => {
+      clearInterval(fetchAPITimer);
+    };
+  }, [readString]);
 
   return (
     <>
@@ -26,6 +41,7 @@ const App = () => {
           </p>
         </header>
         <main>
+          Last modified - {lastModified}
           <ul>
             {data.map((el, i) => (
               <li key={i}>
